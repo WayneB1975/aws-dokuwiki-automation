@@ -1,3 +1,19 @@
+#!/usr/bin/env bash
+# Strict mode: Exit on error, undefined vars, or pipe failures
+set -euo pipefail
+
+# =============================================================================
+# DokuWiki Installer — Apache + PHP on Ubuntu
+# Created by: Duane Williams
+# Usage: sudo bash deploy_dokuwiki.sh
+# =============================================================================
+
+# --- Configuration -----------------------------------------------------------
+INSTALL_DIR="/var/www/html/kb"
+TEMP_DIR="/tmp/wiki_install"
+DOKUWIKI_URL="https://download.dokuwiki.org/src/dokuwiki/dokuwiki-stable.tgz"
+APACHE_SITE="kb"
+
 # --- 1. System Prep ----------------------------------------------------------
 echo "[1/7] Updating system packages..."
 sudo apt-get update -y && sudo apt-get upgrade -y
@@ -11,27 +27,23 @@ sudo apt-get install -y \
   php-mbstring \
   libapache2-mod-php
 
-
 # --- 2. Directory Setup ------------------------------------------------------
 echo "[2/7] Preparing install directories..."
-sudo rm -f /var/www/html/index.html
+sudo rm -rf "$INSTALL_DIR"  # Clean install if it exists
 sudo mkdir -p "$INSTALL_DIR"
 sudo mkdir -p "$TEMP_DIR"
-
 
 # --- 3. Download & Extract ---------------------------------------------------
 echo "[3/7] Downloading DokuWiki..."
 cd "$TEMP_DIR"
-sudo wget -q "$DOKUWIKI_URL"
+sudo wget -q "$DOKUWIKI_URL" -O dokuwiki-stable.tgz
 sudo tar xf dokuwiki-stable.tgz --strip-components=1 -C "$INSTALL_DIR"
-
 
 # --- 4. Permissions ----------------------------------------------------------
 echo "[4/7] Setting file permissions..."
 sudo chown -R www-data:www-data "$INSTALL_DIR"
 sudo find "$INSTALL_DIR" -type d -exec chmod 755 {} \;
 sudo find "$INSTALL_DIR" -type f -exec chmod 644 {} \;
-
 
 # --- 5. Apache Virtual Host --------------------------------------------------
 echo "[5/7] Configuring Apache virtual host..."
@@ -52,7 +64,6 @@ sudo tee /etc/apache2/sites-available/${APACHE_SITE}.conf > /dev/null <<EOF
 </VirtualHost>
 EOF
 
-
 # --- 6. Default Landing Page -------------------------------------------------
 echo "[6/7] Creating default wiki home page..."
 sudo mkdir -p "${INSTALL_DIR}/data/pages"
@@ -67,22 +78,18 @@ This is a custom-deployed DokuWiki instance, optimized for private documentation
   * [[servers|Server Logs]]       - Infrastructure details
 
 ===== Tech Stack =====
-  * **OS:**         Ubuntu
+  * **OS:** Ubuntu
   * **Web Server:** Apache
-  * **Engine:**     PHP
+  * **Engine:** PHP
 EOF
-
 
 # --- 7. Enable Site & Restart Apache -----------------------------------------
 echo "[7/7] Enabling site and restarting Apache..."
-sudo a2dissite 000-default.conf
+sudo a2dissite 000-default.conf || true
 sudo a2ensite  ${APACHE_SITE}.conf
 sudo a2enmod   rewrite
 sudo systemctl restart apache2
 
 echo ""
-echo "✓ DokuWiki installed successfully at http://localhost/kb"
-echo "  Complete setup by visiting the installer in your browser."
-
-
-
+echo "✓ DokuWiki installed successfully."
+echo "Visit your site at: http://$(hostname -I | awk '{print $1}')/${APACHE_SITE}"
